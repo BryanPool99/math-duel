@@ -1,0 +1,214 @@
+<div class="game">
+  <header class="game-header">
+    <button class="icon-btn" type="button" (click)="goToMenu()" aria-label="Volver al menú">
+      <app-icon name="arrow-left" />
+    </button>
+
+    <div class="brand">Math Duel</div>
+
+    <div class="round-pill">
+      <span>Preg. {{ questionsAnswered() }}</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span>{{ difficultyLabel }}</span>
+    </div>
+  </header>
+
+  <section class="hud">
+    <div class="timer-wrap">
+      <app-timer [timeLeft]="timeLeft()" />
+      <div
+        class="timer-track"
+        role="progressbar"
+        [attr.aria-valuenow]="timeLeft()"
+        [attr.aria-valuemin]="0"
+        [attr.aria-valuemax]="totalSeconds"
+        aria-label="Tiempo restante"
+      >
+        <div
+          class="timer-fill"
+          [style.transform]="'scaleX(' + timerScale + ')'"
+          [class.low]="timeLeft() <= 10"
+        ></div>
+      </div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="score-card user">
+        <span class="score-label">Tú</span>
+        <span class="score-value">{{ score().user }}</span>
+      </div>
+      <div class="vs" aria-hidden="true">VS</div>
+      <div class="score-card ai">
+        <span class="score-label">IA</span>
+        <span class="score-value">{{ score().ai }}</span>
+      </div>
+    </div>
+
+    <!-- Barra de enfrentamiento: la tuya crece desde tu lado y le quita espacio a la IA. -->
+    <div class="battle" aria-hidden="true">
+      <div class="battle-track">
+        <span class="battle-fill user" [style.transform]="'scaleX(' + userShare() + ')'"></span>
+        <span class="battle-fill ai" [style.transform]="'scaleX(' + (1 - userShare()) + ')'"></span>
+        <span class="battle-seam" [style.transform]="'translateX(' + userShare() * 100 + '%)'"></span>
+      </div>
+    </div>
+
+    <div class="duel-strip">
+      @if (streak() > 0) {
+        <span class="streak-chip" [class.combo]="bonusFlash()">
+          <app-icon name="zap" [filled]="true" />
+          @if (bonusFlash()) {
+            <span>+1 combo</span>
+          } @else {
+            <span>Racha {{ streak() }}</span>
+          }
+        </span>
+      }
+      <div class="ai-turn">
+        <app-icon name="cpu" class="ai-icon" />
+        <span class="ai-state">
+          @if (aiFlash(); as flash) {
+            <span class="ai-flash" role="status" [class.miss]="flash.kind === 'miss'">
+              {{ flash.kind === 'score' ? '+1 IA' : 'IA falla' }}
+            </span>
+          } @else if (aiQuestion(); as aq) {
+            <span class="ai-question">
+              {{ aq.a }} {{ operationSymbol(aq.operation) }} {{ aq.b }}
+            </span>
+          } @else {
+            <span class="ai-question idle">pensando…</span>
+          }
+        </span>
+        <span
+          class="ai-track"
+          role="progressbar"
+          [attr.aria-valuenow]="aiPercent"
+          [attr.aria-valuemin]="0"
+          [attr.aria-valuemax]="100"
+          aria-label="La IA está resolviendo su pregunta"
+        >
+          <span class="ai-fill" [style.transform]="'scaleX(' + aiProgress() + ')'"></span>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <main class="question-area">
+    @if (currentQuestion(); as q) {
+      @for (item of [q]; track item.id) {
+        <div class="question-card">
+          <p class="question-text">
+            {{ item.a }}
+            <span class="op">{{ operationSymbol(item.operation) }}</span>
+            {{ item.b }}
+            <span class="op">=</span> ?
+          </p>
+
+          <div class="options-grid">
+            @for (option of item.options; track option) {
+              <button
+                type="button"
+                class="option-btn"
+                [class.correct]="answerState() !== null && option === item.correctAnswer"
+                [class.wrong]="answerState() === 'wrong' && selectedAnswer() === option"
+                [disabled]="selectedAnswer() !== null || gameOver()"
+                (click)="onAnswer(option)"
+              >
+                <span class="option-key" aria-hidden="true">{{ $index + 1 }}</span>
+                {{ option }}
+              </button>
+            }
+          </div>
+
+          @if (answerState(); as state) {
+            <p class="feedback" [class.ok]="state === 'correct'" [class.bad]="state === 'wrong'">
+              <app-icon [name]="state === 'correct' ? 'check' : 'x'" />
+              {{ state === 'correct' ? 'Correcto — +1 para ti' : 'Fallaste — 0 puntos' }}
+            </p>
+          }
+        </div>
+      }
+    } @else {
+      <div class="question-card loading">
+        <p class="loading-text">Preparando la pregunta…</p>
+      </div>
+    }
+  </main>
+
+  @if (gameOver()) {
+    <div class="result-overlay">
+      <div class="result-card">
+        <span class="result-icon" [class.win]="winner() === 'user'">
+          <app-icon [name]="resultIcon()" [filled]="winner() === 'user'" />
+        </span>
+
+        <h2 class="result-title">{{ resultTitle() }}</h2>
+
+        <div class="result-scores">
+          <div class="result-score user">
+            <span class="result-label">Tú</span>
+            <span class="result-value">{{ score().user }}</span>
+          </div>
+          <div class="result-score ai">
+            <span class="result-label">IA</span>
+            <span class="result-value">{{ score().ai }}</span>
+          </div>
+        </div>
+
+        <p class="result-message">{{ resultMessage() }}</p>
+
+        <div class="result-stats">
+          <div class="stat-chip">
+            <span class="stat-value">{{ summary().accuracy }}%</span>
+            <span class="stat-label">Precisión</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-value">{{ summary().bestStreak }}</span>
+            <span class="stat-label">Mejor racha</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-value">{{ summary().avgSeconds }}s</span>
+            <span class="stat-label">Por pregunta</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-value">+{{ summary().bonus }}</span>
+            <span class="stat-label">Bonus combo</span>
+          </div>
+        </div>
+
+        <p class="result-ai">
+          La IA resolvió {{ summary().aiCorrect }} de {{ summary().aiAttempts }} preguntas ({{
+            summary().aiAccuracy
+          }}%)
+        </p>
+
+        @if (summary().wrong > 0) {
+          <div class="review">
+            <h3 class="review-title">Repaso de fallos ({{ summary().wrong }})</h3>
+            <ul class="review-list">
+              @for (miss of summary().missed; track miss.question.id) {
+                <li class="review-item">
+                  <span class="review-q">
+                    {{ miss.question.a }} {{ operationSymbol(miss.question.operation) }}
+                    {{ miss.question.b }} = {{ miss.question.correctAnswer }}
+                  </span>
+                  <span class="review-a">Tu respuesta: {{ miss.selected }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        } @else {
+          <p class="review-empty">Sin fallos: todas tus respuestas fueron correctas.</p>
+        }
+
+        <div class="result-actions">
+          <button class="primary-btn" type="button" (click)="playAgain()">
+            <app-icon name="refresh" />
+            Jugar de nuevo
+          </button>
+          <button class="ghost-btn" type="button" (click)="goToMenu()">Volver al menú</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

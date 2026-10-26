@@ -1,619 +1,37 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { MathService, MathQuestion } from '../math';
 import { TimerComponent } from '../timer';
 import { IconComponent } from '../icon';
+import { aiAnswersCorrectly, aiReactionFor } from './ai';
 
 const ROUND_SECONDS = 60;
+const ROUND_MS = ROUND_SECONDS * 1000;
+/** Un unico reloj de 100ms gobierna la ronda: cuenta atras, IA y barras. */
+const TICK_MS = 100;
 const ANSWER_FEEDBACK_MS = 650;
+const AI_FLASH_MS = 700;
+/** Puntos que da de bonus cada N aciertos seguidos. */
+const COMBO_EVERY = 5;
+const BONUS_FLASH_MS = 1000;
 
 type AnswerState = 'correct' | 'wrong';
 type Winner = 'user' | 'ai' | 'draw';
 
+/** Rastro de cada respuesta del jugador, para el desglose final. */
+export interface AnswerLogEntry {
+  readonly question: MathQuestion;
+  readonly selected: number;
+  readonly correct: boolean;
+  /** Tiempo que tardó la pregunta hasta la respuesta, en ms. */
+  readonly ms: number;
+}
+
 @Component({
   selector: 'app-game',
   imports: [TimerComponent, IconComponent],
-  template: `
-    <div class="game">
-      <header class="game-header">
-        <button class="icon-btn" type="button" (click)="goToMenu()" aria-label="Volver al menú">
-          <app-icon name="arrow-left" />
-        </button>
-
-        <div class="brand">Math Duel</div>
-
-        <div class="round-pill">
-          <span>Preg. {{ questionsAnswered() }}</span>
-          <span class="sep" aria-hidden="true">·</span>
-          <span>{{ difficultyLabel }}</span>
-        </div>
-      </header>
-
-      <section class="hud">
-        <div class="timer-wrap">
-          <app-timer [timeLeft]="timeLeft()" />
-          <div
-            class="timer-track"
-            role="progressbar"
-            [attr.aria-valuenow]="timeLeft()"
-            [attr.aria-valuemin]="0"
-            [attr.aria-valuemax]="totalSeconds"
-            aria-label="Tiempo restante"
-          >
-            <div
-              class="timer-fill"
-              [style.transform]="'scaleX(' + timerScale + ')'"
-              [class.low]="timeLeft() <= 10"
-            ></div>
-          </div>
-        </div>
-
-        <div class="scoreboard">
-          <div class="score-card user">
-            <span class="score-label">Tú</span>
-            <span class="score-value">{{ score().user }}</span>
-          </div>
-          <div class="vs" aria-hidden="true">VS</div>
-          <div class="score-card ai">
-            <span class="score-label">IA</span>
-            <span class="score-value">{{ score().ai }}</span>
-          </div>
-        </div>
-      </section>
-
-      <main class="question-area">
-        @if (currentQuestion(); as q) {
-          @for (item of [q]; track item.id) {
-            <div class="question-card">
-              <p class="question-text">
-                {{ item.a }}
-                <span class="op">{{ operationSymbol(item.operation) }}</span>
-                {{ item.b }}
-                <span class="op">=</span> ?
-              </p>
-
-              <div class="options-grid">
-                @for (option of item.options; track option) {
-                  <button
-                    type="button"
-                    class="option-btn"
-                    [class.correct]="answerState() !== null && option === item.correctAnswer"
-                    [class.wrong]="answerState() === 'wrong' && selectedAnswer() === option"
-                    [disabled]="selectedAnswer() !== null || gameOver()"
-                    (click)="onAnswer(option)"
-                  >
-                    {{ option }}
-                  </button>
-                }
-              </div>
-
-              @if (answerState(); as state) {
-                <p class="feedback" [class.ok]="state === 'correct'" [class.bad]="state === 'wrong'">
-                  <app-icon [name]="state === 'correct' ? 'check' : 'x'" />
-                  {{ state === 'correct' ? 'Correcto — +1 para ti' : 'Fallaste — +1 para la IA' }}
-                </p>
-              }
-            </div>
-          }
-        } @else {
-          <div class="question-card loading">
-            <p class="loading-text">Preparando la pregunta…</p>
-          </div>
-        }
-      </main>
-
-      @if (gameOver()) {
-        <div class="result-overlay">
-          <div class="result-card">
-            <span class="result-icon" [class.win]="winner() === 'user'">
-              <app-icon [name]="resultIcon()" [filled]="winner() === 'user'" />
-            </span>
-
-            <h2 class="result-title">{{ resultTitle() }}</h2>
-
-            <div class="result-scores">
-              <div class="result-score user">
-                <span class="result-label">Tú</span>
-                <span class="result-value">{{ score().user }}</span>
-              </div>
-              <div class="result-score ai">
-                <span class="result-label">IA</span>
-                <span class="result-value">{{ score().ai }}</span>
-              </div>
-            </div>
-
-            <p class="result-message">{{ resultMessage() }}</p>
-
-            <div class="result-actions">
-              <button class="primary-btn" type="button" (click)="playAgain()">
-                <app-icon name="refresh" />
-                Jugar de nuevo
-              </button>
-              <button class="ghost-btn" type="button" (click)="goToMenu()">Volver al menú</button>
-            </div>
-          </div>
-        </div>
-      }
-    </div>
-  `,
-  styles: [
-    `
-      .game {
-        min-height: 100vh;
-        box-sizing: border-box;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        color: var(--md-text);
-      }
-
-      /* Los tres bloques comparten la columna de 720px centrada. */
-      .game-header,
-      .hud,
-      .question-area {
-        width: 100%;
-        max-width: 720px;
-      }
-
-      /* auto arriba en la cabecera y auto abajo en la tarjeta centran la
-         columna cuando sobra altura, y colapsan a 0 si no cabe. */
-      .game-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin: auto 0 24px;
-      }
-
-      .icon-btn {
-        display: grid;
-        place-items: center;
-        width: 44px;
-        height: 44px;
-        flex: none;
-        border-radius: var(--md-r-control);
-        border: 1px solid var(--md-border);
-        background: var(--md-surface);
-        color: var(--md-text);
-        font-size: 1.15rem;
-        cursor: pointer;
-        transition: transform 0.15s ease, background 0.2s ease;
-      }
-      .icon-btn:hover {
-        transform: translateX(-2px);
-        background: var(--md-surface-2);
-      }
-
-      .brand {
-        flex: 1;
-        font-size: 1.3rem;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        text-align: center;
-      }
-
-      .round-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        flex: none;
-        padding: 8px 14px;
-        border-radius: var(--md-r-pill);
-        background: var(--md-surface-2);
-        border: 1px solid var(--md-border);
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: var(--md-muted);
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-      }
-
-      .sep {
-        color: color-mix(in srgb, var(--md-muted) 60%, transparent);
-      }
-
-      /* ---------- HUD ---------- */
-      .hud {
-        margin: 0 0 24px;
-        display: grid;
-        gap: 16px;
-      }
-
-      .timer-wrap {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-
-      app-timer {
-        flex: none;
-      }
-
-      .timer-track {
-        flex: 1;
-        min-width: 0;
-        height: 8px;
-        border-radius: var(--md-r-pill);
-        background: color-mix(in srgb, var(--md-muted) 24%, transparent);
-        overflow: hidden;
-      }
-
-      .timer-fill {
-        height: 100%;
-        width: 100%;
-        transform-origin: left center;
-        background: var(--md-blue);
-        transition: transform 0.9s linear, background 0.3s ease;
-      }
-      .timer-fill.low {
-        background: var(--md-rose);
-        animation: pulse 1s ease-in-out infinite;
-      }
-
-      @keyframes pulse {
-        50% {
-          opacity: 0.5;
-        }
-      }
-
-      .scoreboard {
-        display: flex;
-        align-items: stretch;
-        justify-content: center;
-        gap: 14px;
-      }
-
-      .score-card {
-        flex: 1;
-        max-width: 200px;
-        text-align: center;
-        padding: 14px 16px;
-        border-radius: var(--md-r-control);
-        color: #fff;
-      }
-      .score-card.user {
-        background: var(--md-blue);
-        box-shadow: 0 8px 20px color-mix(in srgb, var(--md-blue) 30%, transparent);
-      }
-      .score-card.ai {
-        background: var(--md-rose);
-        box-shadow: 0 8px 20px color-mix(in srgb, var(--md-rose) 30%, transparent);
-      }
-
-      .score-label {
-        display: block;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-      }
-
-      .score-value {
-        display: block;
-        font-size: 2.2rem;
-        font-weight: 700;
-        line-height: 1.2;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .vs {
-        align-self: center;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        color: var(--md-muted);
-      }
-
-      /* ---------- Pregunta ---------- */
-      .question-area {
-        margin: 0 0 auto;
-      }
-
-      .question-card {
-        background: var(--md-surface);
-        border-radius: var(--md-r-card);
-        padding: 30px 26px;
-        box-shadow: var(--md-elevation);
-        animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1);
-        transition: background 0.3s ease;
-      }
-
-      @keyframes rise {
-        from {
-          opacity: 0;
-          transform: translateY(14px);
-        }
-      }
-
-      .question-text {
-        margin: 0;
-        text-align: center;
-        font-size: clamp(2.2rem, 8vw, 3.4rem);
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        line-height: 1.1;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .op {
-        color: var(--md-accent);
-        font-weight: 600;
-        padding: 0 0.12em;
-      }
-
-      .options-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px;
-        margin-top: 26px;
-      }
-
-      .option-btn {
-        min-height: 62px;
-        padding: 14px;
-        font-size: 1.5rem;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        color: var(--md-text);
-        background: var(--md-surface-2);
-        border: 1px solid var(--md-border);
-        border-radius: var(--md-r-control);
-        cursor: pointer;
-        transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-      }
-
-      .option-btn:hover:not(:disabled) {
-        transform: translateY(-3px);
-        border-color: var(--md-accent);
-        background: color-mix(in srgb, var(--md-accent) 8%, var(--md-surface-2));
-      }
-
-      .option-btn:active:not(:disabled) {
-        transform: translateY(0);
-      }
-
-      .option-btn:disabled {
-        cursor: default;
-      }
-      .option-btn:disabled:not(.correct):not(.wrong) {
-        opacity: 0.55;
-      }
-
-      .option-btn.correct {
-        color: var(--md-good-ink);
-        background: color-mix(in srgb, var(--md-good) 18%, var(--md-surface));
-        border-color: var(--md-good);
-        animation: bump 0.3s ease;
-      }
-
-      .option-btn.wrong {
-        color: var(--md-bad-ink);
-        background: color-mix(in srgb, var(--md-bad) 16%, var(--md-surface));
-        border-color: var(--md-bad);
-        animation: shake 0.35s ease;
-      }
-
-      @keyframes bump {
-        50% {
-          transform: scale(1.04);
-        }
-      }
-      @keyframes shake {
-        25% {
-          transform: translateX(-6px);
-        }
-        75% {
-          transform: translateX(6px);
-        }
-      }
-
-      .feedback {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        margin: 20px 0 0;
-        font-size: 1rem;
-        font-weight: 600;
-      }
-      .feedback.ok {
-        color: var(--md-good-ink);
-      }
-      .feedback.bad {
-        color: var(--md-bad-ink);
-      }
-
-      .loading {
-        text-align: center;
-        padding: 48px 26px;
-      }
-      .loading-text {
-        margin: 0;
-        color: var(--md-muted);
-      }
-
-      /* ---------- Resultado ---------- */
-      .result-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 50;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-        background: var(--md-scrim);
-        backdrop-filter: blur(8px);
-        animation: fade 0.28s ease;
-      }
-
-      @keyframes fade {
-        from {
-          opacity: 0;
-        }
-      }
-
-      .result-card {
-        width: min(420px, 100%);
-        text-align: center;
-        padding: 34px 28px;
-        border-radius: var(--md-r-card);
-        background: var(--md-surface);
-        box-shadow: var(--md-elevation-lg);
-        animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1);
-      }
-
-      .result-icon {
-        display: grid;
-        place-items: center;
-        width: 64px;
-        height: 64px;
-        margin: 0 auto 16px;
-        border-radius: 50%;
-        font-size: 2rem;
-        color: var(--md-muted);
-        background: var(--md-surface-2);
-      }
-      .result-icon.win {
-        color: var(--md-accent-ink);
-        background: var(--md-accent-grad);
-      }
-
-      .result-title {
-        margin: 0;
-        font-size: 1.9rem;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-      }
-
-      .result-scores {
-        display: flex;
-        justify-content: center;
-        gap: 44px;
-        margin: 24px 0 8px;
-      }
-
-      .result-label {
-        display: block;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--md-muted);
-        margin-bottom: 4px;
-      }
-
-      .result-value {
-        display: block;
-        font-size: 3rem;
-        font-weight: 700;
-        line-height: 1.1;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .result-score.user .result-value {
-        color: var(--md-blue);
-      }
-      .result-score.ai .result-value {
-        color: var(--md-rose);
-      }
-
-      .result-message {
-        margin: 14px 0 24px;
-        font-size: 1rem;
-        line-height: 1.5;
-        color: var(--md-muted);
-      }
-
-      .result-actions {
-        display: grid;
-        gap: 10px;
-      }
-
-      .primary-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        min-height: 52px;
-        padding: 13px 22px;
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--md-accent-ink);
-        background: var(--md-accent-grad);
-        border: none;
-        border-radius: var(--md-r-control);
-        cursor: pointer;
-        box-shadow: 0 10px 24px color-mix(in srgb, var(--md-accent) 30%, transparent);
-        transition: transform 0.15s ease, filter 0.15s ease;
-      }
-      .primary-btn:hover {
-        transform: translateY(-2px);
-        filter: brightness(1.06);
-      }
-
-      .ghost-btn {
-        min-height: 48px;
-        padding: 12px 22px;
-        font-size: 0.98rem;
-        font-weight: 600;
-        color: var(--md-muted);
-        background: transparent;
-        border: 1px solid var(--md-border);
-        border-radius: var(--md-r-control);
-        cursor: pointer;
-        transition: background 0.15s ease, color 0.15s ease;
-      }
-      .ghost-btn:hover {
-        background: var(--md-surface-2);
-        color: var(--md-text);
-      }
-
-      /* ---------- Responsive ---------- */
-      @media (max-width: 560px) {
-        .game {
-          padding: 14px;
-        }
-        .brand {
-          font-size: 1.15rem;
-        }
-        .round-pill {
-          padding: 7px 11px;
-          font-size: 0.75rem;
-        }
-        .score-card {
-          padding: 12px;
-        }
-        .score-value {
-          font-size: 1.85rem;
-        }
-        .options-grid {
-          gap: 10px;
-        }
-        .option-btn {
-          min-height: 56px;
-          font-size: 1.3rem;
-        }
-        .question-card {
-          padding: 24px 16px;
-        }
-        .result-scores {
-          gap: 30px;
-        }
-        .result-value {
-          font-size: 2.4rem;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        *,
-        *::before,
-        *::after {
-          animation-duration: 0.01ms !important;
-          transition-duration: 0.01ms !important;
-        }
-      }
-    `,
-  ],
+  templateUrl: './game.html',
+  styleUrls: ['./game.scss'],
 })
 export class GameComponent implements OnInit, OnDestroy {
   readonly totalSeconds = ROUND_SECONDS;
@@ -629,14 +47,73 @@ export class GameComponent implements OnInit, OnDestroy {
   readonly gameOver = signal(false);
   readonly winner = signal<Winner | null>(null);
 
+  /** Racha de aciertos consecutivos y bonus acumulado. */
+  readonly streak = signal(0);
+  readonly bestStreak = signal(0);
+  readonly bonus = signal(0);
+  readonly bonusFlash = signal(false);
+
+  /** Cada respuesta del jugador con su tiempo, para la pantalla de resultados. */
+  readonly answerLog = signal<AnswerLogEntry[]>([]);
+
+  /** Desglose de la ronda: precisión, ritmo, racha, bonus y fallos. */
+  readonly summary = computed(() => {
+    const log = this.answerLog();
+    const answered = log.length;
+    const correct = log.filter((entry) => entry.correct).length;
+    const totalMs = log.reduce((sum, entry) => sum + entry.ms, 0);
+    const ai = this.aiStats();
+
+    return {
+      answered,
+      correct,
+      wrong: answered - correct,
+      accuracy: answered === 0 ? 0 : Math.round((correct / answered) * 100),
+      avgSeconds: answered === 0 ? 0 : Math.round(totalMs / answered / 100) / 10,
+      bestStreak: this.bestStreak(),
+      bonus: this.bonus(),
+      aiAttempts: ai.attempts,
+      aiCorrect: ai.correct,
+      aiAccuracy: ai.attempts === 0 ? 0 : Math.round((ai.correct / ai.attempts) * 100),
+      missed: log.filter((entry) => !entry.correct),
+    };
+  });
+
+  /**
+   * Barra de enfrentamiento: cuota que llevas sobre el total de puntos.
+   * 0-0 arranca en mitad y cada punto se le quita al rival.
+   */
+  readonly userShare = computed(() => {
+    const { user, ai } = this.score();
+    const total = user + ai;
+    return total === 0 ? 0.5 : user / total;
+  });
+
+  /** La IA en su propio reloj: avance hacia su proxima respuesta. */
+  readonly aiProgress = signal(0);
+  readonly aiQuestion = signal<MathQuestion | null>(null);
+  readonly aiFlash = signal<{ kind: 'score' | 'miss' } | null>(null);
+  readonly aiStats = signal({ attempts: 0, correct: 0 });
+
   private readonly mathService = inject(MathService);
   private readonly router = inject(Router);
   private intervalId: ReturnType<typeof setInterval> | null = null;
-  private feedbackId: ReturnType<typeof setTimeout> | null = null;
+  private readonly timeouts = new Set<ReturnType<typeof setTimeout>>();
+  private roundStartAt = 0;
+  /** performance.now() en el que apareció la pregunta actual. */
+  private questionStartAt = 0;
+  /** ms transcurridos de la ronda en los que la IA responde. */
+  private aiNextAt = 0;
+  private aiDelayMs = 1;
 
   /** Avance de la barra del cronómetro, 1 → 0. Se anima con transform. */
   get timerScale(): number {
     return this.timeLeft() / this.totalSeconds;
+  }
+
+  /** Avance de la IA en tanto por uno, para aria-valuenow. */
+  get aiPercent(): number {
+    return Math.round(this.aiProgress() * 100);
   }
 
   get difficultyLabel(): string {
@@ -700,10 +177,19 @@ export class GameComponent implements OnInit, OnDestroy {
     this.winner.set(null);
     this.selectedAnswer.set(null);
     this.answerState.set(null);
+    this.aiProgress.set(0);
+    this.aiQuestion.set(null);
+    this.aiFlash.set(null);
+    this.aiStats.set({ attempts: 0, correct: 0 });
+    this.streak.set(0);
+    this.bestStreak.set(0);
+    this.bonus.set(0);
+    this.bonusFlash.set(false);
+    this.answerLog.set([]);
 
     this.mathService.resetGame();
     this.spawnQuestion();
-    this.startTicking();
+    this.startRoundLoop();
   }
 
   playAgain(): void {
@@ -715,6 +201,46 @@ export class GameComponent implements OnInit, OnDestroy {
     this.router.navigate(['/']);
   }
 
+  /**
+   * Atajos: 1-4 responden, Esc vuelve al menú y Enter repite la partida.
+   * Enter se salta cuando el foco ya está en un control, para no duplicar
+   * el clic nativo del botón que tiene el foco.
+   */
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    const inControl = !!target && /^(BUTTON|INPUT|SELECT|TEXTAREA|A)$/.test(target.tagName);
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.goToMenu();
+      return;
+    }
+
+    if (this.gameOver()) {
+      if (event.key === 'Enter' && !inControl) {
+        event.preventDefault();
+        this.playAgain();
+      }
+      return;
+    }
+
+    const isDigit = event.key >= '1' && event.key <= '4';
+    if (!isDigit || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    const question = this.currentQuestion();
+    if (!question || this.selectedAnswer() !== null) {
+      return;
+    }
+    const option = question.options[Number(event.key) - 1];
+    if (option !== undefined) {
+      event.preventDefault();
+      this.onAnswer(option);
+    }
+  }
+
   onAnswer(option: number): void {
     if (this.selectedAnswer() !== null || this.gameOver() || !this.currentQuestion()) {
       return;
@@ -724,13 +250,38 @@ export class GameComponent implements OnInit, OnDestroy {
     this.selectedAnswer.set(option);
     this.answerState.set(correct ? 'correct' : 'wrong');
 
-    const current = this.score();
-    this.score.set(
-      correct ? { ...current, user: current.user + 1 } : { ...current, ai: current.ai + 1 },
-    );
+    // Errar ya no le regala puntos a la IA: la IA se puntua en su reloj.
+    if (correct) {
+      const streak = this.streak() + 1;
+      this.streak.set(streak);
+      this.bestStreak.update((best) => Math.max(best, streak));
 
-    this.feedbackId = setTimeout(() => {
-      this.feedbackId = null;
+      // Cada N seguidas cae un punto de bonus.
+      let extra = 0;
+      if (streak % COMBO_EVERY === 0) {
+        extra = 1;
+        this.bonus.update((b) => b + 1);
+        this.bonusFlash.set(true);
+        this.schedule(() => this.bonusFlash.set(false), BONUS_FLASH_MS);
+      }
+
+      const current = this.score();
+      this.score.set({ ...current, user: current.user + 1 + extra });
+    } else {
+      this.streak.set(0);
+    }
+
+    this.answerLog.update((log) => [
+      ...log,
+      {
+        question: this.currentQuestion()!,
+        selected: option,
+        correct,
+        ms: Math.round(performance.now() - this.questionStartAt),
+      },
+    ]);
+
+    this.schedule(() => {
       this.selectedAnswer.set(null);
       this.answerState.set(null);
       if (!this.gameOver()) {
@@ -755,25 +306,84 @@ export class GameComponent implements OnInit, OnDestroy {
   private spawnQuestion(): void {
     this.currentQuestion.set(this.mathService.getNextQuestion());
     this.questionsAnswered.update((n) => n + 1);
+    this.questionStartAt = performance.now();
   }
 
-  private startTicking(): void {
-    this.intervalId = setInterval(() => {
-      const next = this.timeLeft() - 1;
-      if (next <= 0) {
-        this.timeLeft.set(0);
-        this.endRound();
-      } else {
-        this.timeLeft.set(next);
-      }
-    }, 1000);
+  /* --------------------------- Motor de la ronda --------------------------- */
+
+  private startRoundLoop(): void {
+    this.roundStartAt = performance.now();
+    this.aiDelayMs = this.nextAiDelay();
+    this.aiNextAt = this.aiDelayMs;
+    this.intervalId = setInterval(() => this.tick(), TICK_MS);
+    this.tick();
+  }
+
+  private tick(): void {
+    const elapsed = performance.now() - this.roundStartAt;
+    const remaining = Math.max(0, ROUND_MS - elapsed);
+
+    const seconds = Math.ceil(remaining / 1000);
+    if (seconds !== this.timeLeft()) {
+      this.timeLeft.set(seconds);
+    }
+
+    if (remaining <= 0) {
+      this.timeLeft.set(0);
+      this.endRound();
+      return;
+    }
+
+    // La IA responde tantas veces como le haya dado tiempo en este frame.
+    while (elapsed >= this.aiNextAt && !this.gameOver()) {
+      this.resolveAiTurn(elapsed);
+    }
+
+    const ahead = this.aiNextAt - elapsed;
+    this.aiProgress.set(Math.min(1, Math.max(0, 1 - ahead / this.aiDelayMs)));
+  }
+
+  private resolveAiTurn(elapsed: number): void {
+    const difficulty = this.mathService.getCurrentDifficulty();
+    const correct = aiAnswersCorrectly(difficulty, Math.random());
+    const stats = this.aiStats();
+
+    this.aiQuestion.set(this.mathService.getNextQuestion());
+    this.aiStats.set({
+      attempts: stats.attempts + 1,
+      correct: stats.correct + (correct ? 1 : 0),
+    });
+
+    if (correct) {
+      const current = this.score();
+      this.score.set({ ...current, ai: current.ai + 1 });
+    }
+
+    this.aiFlash.set({ kind: correct ? 'score' : 'miss' });
+    this.schedule(() => this.aiFlash.set(null), AI_FLASH_MS);
+
+    this.aiDelayMs = this.nextAiDelay();
+    this.aiNextAt = elapsed + this.aiDelayMs;
+  }
+
+  private nextAiDelay(): number {
+    return aiReactionFor(this.mathService.getCurrentDifficulty(), Math.random());
   }
 
   private endRound(): void {
     this.clearTimers();
+    this.aiFlash.set(null);
     const { user, ai } = this.score();
     this.winner.set(user > ai ? 'user' : ai > user ? 'ai' : 'draw');
     this.gameOver.set(true);
+  }
+
+  private schedule(fn: () => void, ms: number): void {
+    const id = setTimeout(() => {
+      this.timeouts.delete(id);
+      fn();
+    }, ms);
+    this.timeouts.add(id);
   }
 
   private clearTimers(): void {
@@ -781,9 +391,9 @@ export class GameComponent implements OnInit, OnDestroy {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    if (this.feedbackId !== null) {
-      clearTimeout(this.feedbackId);
-      this.feedbackId = null;
+    for (const id of this.timeouts) {
+      clearTimeout(id);
     }
+    this.timeouts.clear();
   }
 }
