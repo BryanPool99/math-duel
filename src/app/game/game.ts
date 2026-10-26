@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { MathService, MathQuestion } from '../math';
 import { TimerComponent } from '../timer';
@@ -11,6 +11,9 @@ const ROUND_MS = ROUND_SECONDS * 1000;
 const TICK_MS = 100;
 const ANSWER_FEEDBACK_MS = 650;
 const AI_FLASH_MS = 700;
+/** Puntos que da de bonus cada N aciertos seguidos. */
+const COMBO_EVERY = 5;
+const BONUS_FLASH_MS = 1000;
 
 type AnswerState = 'correct' | 'wrong';
 type Winner = 'user' | 'ai' | 'draw';
@@ -34,6 +37,22 @@ export class GameComponent implements OnInit, OnDestroy {
   readonly answerState = signal<AnswerState | null>(null);
   readonly gameOver = signal(false);
   readonly winner = signal<Winner | null>(null);
+
+  /** Racha de aciertos consecutivos y bonus acumulado. */
+  readonly streak = signal(0);
+  readonly bestStreak = signal(0);
+  readonly bonus = signal(0);
+  readonly bonusFlash = signal(false);
+
+  /**
+   * Barra de enfrentamiento: cuota que llevas sobre el total de puntos.
+   * 0-0 arranca en mitad y cada punto se le quita al rival.
+   */
+  readonly userShare = computed(() => {
+    const { user, ai } = this.score();
+    const total = user + ai;
+    return total === 0 ? 0.5 : user / total;
+  });
 
   /** La IA en su propio reloj: avance hacia su proxima respuesta. */
   readonly aiProgress = signal(0);
@@ -125,6 +144,10 @@ export class GameComponent implements OnInit, OnDestroy {
     this.aiQuestion.set(null);
     this.aiFlash.set(null);
     this.aiStats.set({ attempts: 0, correct: 0 });
+    this.streak.set(0);
+    this.bestStreak.set(0);
+    this.bonus.set(0);
+    this.bonusFlash.set(false);
 
     this.mathService.resetGame();
     this.spawnQuestion();
@@ -151,8 +174,23 @@ export class GameComponent implements OnInit, OnDestroy {
 
     // Errar ya no le regala puntos a la IA: la IA se puntua en su reloj.
     if (correct) {
+      const streak = this.streak() + 1;
+      this.streak.set(streak);
+      this.bestStreak.update((best) => Math.max(best, streak));
+
+      // Cada N seguidas cae un punto de bonus.
+      let extra = 0;
+      if (streak % COMBO_EVERY === 0) {
+        extra = 1;
+        this.bonus.update((b) => b + 1);
+        this.bonusFlash.set(true);
+        this.schedule(() => this.bonusFlash.set(false), BONUS_FLASH_MS);
+      }
+
       const current = this.score();
-      this.score.set({ ...current, user: current.user + 1 });
+      this.score.set({ ...current, user: current.user + 1 + extra });
+    } else {
+      this.streak.set(0);
     }
 
     this.schedule(() => {

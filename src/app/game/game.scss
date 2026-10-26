@@ -164,13 +164,82 @@ app-timer {
   color: var(--md-muted);
 }
 
-/* ---------- Franja del duelo: qué está resolviendo la IA ahora mismo ---------- */
+/* ---------- Barra de enfrentamiento (tug-of-war) ----------
+   Los dos rellenos se pintan desde extremos opuestos y se tocan en el
+   punto que marca quien va ganando; la costura viaja con transform. */
+.battle {
+  width: 100%;
+}
+
+.battle-track {
+  position: relative;
+  height: 14px;
+  border-radius: var(--md-r-pill);
+  background: color-mix(in srgb, var(--md-muted) 22%, transparent);
+  overflow: hidden;
+}
+
+.battle-fill {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transition: transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.battle-fill.user {
+  transform-origin: left center;
+  background: var(--md-blue);
+}
+
+.battle-fill.ai {
+  transform-origin: right center;
+  background: var(--md-rose);
+}
+
+.battle-seam {
+  position: absolute;
+  inset: 0;
+  display: block;
+  box-sizing: border-box;
+  border-left: 3px solid var(--md-surface);
+  transition: transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* ---------- Franja del duelo: racha del jugador y turno de la IA ---------- */
 .duel-strip {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 12px;
   min-height: 34px;
+}
+
+.streak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 12px;
+  border-radius: var(--md-r-pill);
+  background: var(--md-surface-2);
+  border: 1px solid var(--md-border);
+  color: var(--md-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: rise 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.streak-chip app-icon {
+  font-size: 0.95rem;
+  color: var(--md-accent);
+}
+
+.streak-chip.combo {
+  border-color: var(--md-accent);
+  background: color-mix(in srgb, var(--md-accent) 14%, var(--md-surface));
+  animation: bump 0.3s ease;
 }
 
 .ai-turn {

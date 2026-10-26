@@ -44,7 +44,26 @@
       </div>
     </div>
 
+    <!-- Barra de enfrentamiento: la tuya crece desde tu lado y le quita espacio a la IA. -->
+    <div class="battle" aria-hidden="true">
+      <div class="battle-track">
+        <span class="battle-fill user" [style.transform]="'scaleX(' + userShare() + ')'"></span>
+        <span class="battle-fill ai" [style.transform]="'scaleX(' + (1 - userShare()) + ')'"></span>
+        <span class="battle-seam" [style.transform]="'translateX(' + userShare() * 100 + '%)'"></span>
+      </div>
+    </div>
+
     <div class="duel-strip">
+      @if (streak() > 0) {
+        <span class="streak-chip" [class.combo]="bonusFlash()">
+          <app-icon name="zap" [filled]="true" />
+          @if (bonusFlash()) {
+            <span>+1 combo</span>
+          } @else {
+            <span>Racha {{ streak() }}</span>
+          }
+        </span>
+      }
       <div class="ai-turn">
         <app-icon name="cpu" class="ai-icon" />
         <span class="ai-state">
