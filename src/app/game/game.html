@@ -43,6 +43,35 @@
         <span class="score-value">{{ score().ai }}</span>
       </div>
     </div>
+
+    <div class="duel-strip">
+      <div class="ai-turn">
+        <app-icon name="cpu" class="ai-icon" />
+        <span class="ai-state">
+          @if (aiFlash(); as flash) {
+            <span class="ai-flash" role="status" [class.miss]="flash.kind === 'miss'">
+              {{ flash.kind === 'score' ? '+1 IA' : 'IA falla' }}
+            </span>
+          } @else if (aiQuestion(); as aq) {
+            <span class="ai-question">
+              {{ aq.a }} {{ operationSymbol(aq.operation) }} {{ aq.b }}
+            </span>
+          } @else {
+            <span class="ai-question idle">pensando…</span>
+          }
+        </span>
+        <span
+          class="ai-track"
+          role="progressbar"
+          [attr.aria-valuenow]="aiPercent"
+          [attr.aria-valuemin]="0"
+          [attr.aria-valuemax]="100"
+          aria-label="La IA está resolviendo su pregunta"
+        >
+          <span class="ai-fill" [style.transform]="'scaleX(' + aiProgress() + ')'"></span>
+        </span>
+      </div>
+    </div>
   </section>
 
   <main class="question-area">
@@ -74,7 +103,7 @@
           @if (answerState(); as state) {
             <p class="feedback" [class.ok]="state === 'correct'" [class.bad]="state === 'wrong'">
               <app-icon [name]="state === 'correct' ? 'check' : 'x'" />
-              {{ state === 'correct' ? 'Correcto — +1 para ti' : 'Fallaste — +1 para la IA' }}
+              {{ state === 'correct' ? 'Correcto — +1 para ti' : 'Fallaste — 0 puntos' }}
             </p>
           }
         </div>

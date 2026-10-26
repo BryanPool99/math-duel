@@ -3,9 +3,14 @@ import { Router } from '@angular/router';
 import { MathService, MathQuestion } from '../math';
 import { TimerComponent } from '../timer';
 import { IconComponent } from '../icon';
+import { aiAnswersCorrectly, aiReactionFor } from './ai';
 
 const ROUND_SECONDS = 60;
+const ROUND_MS = ROUND_SECONDS * 1000;
+/** Un unico reloj de 100ms gobierna la ronda: cuenta atras, IA y barras. */
+const TICK_MS = 100;
 const ANSWER_FEEDBACK_MS = 650;
+const AI_FLASH_MS = 700;
 
 type AnswerState = 'correct' | 'wrong';
 type Winner = 'user' | 'ai' | 'draw';
@@ -30,14 +35,29 @@ export class GameComponent implements OnInit, OnDestroy {
   readonly gameOver = signal(false);
   readonly winner = signal<Winner | null>(null);
 
+  /** La IA en su propio reloj: avance hacia su proxima respuesta. */
+  readonly aiProgress = signal(0);
+  readonly aiQuestion = signal<MathQuestion | null>(null);
+  readonly aiFlash = signal<{ kind: 'score' | 'miss' } | null>(null);
+  readonly aiStats = signal({ attempts: 0, correct: 0 });
+
   private readonly mathService = inject(MathService);
   private readonly router = inject(Router);
   private intervalId: ReturnType<typeof setInterval> | null = null;
-  private feedbackId: ReturnType<typeof setTimeout> | null = null;
+  private readonly timeouts = new Set<ReturnType<typeof setTimeout>>();
+  private roundStartAt = 0;
+  /** ms transcurridos de la ronda en los que la IA responde. */
+  private aiNextAt = 0;
+  private aiDelayMs = 1;
 
   /** Avance de la barra del cronómetro, 1 → 0. Se anima con transform. */
   get timerScale(): number {
     return this.timeLeft() / this.totalSeconds;
+  }
+
+  /** Avance de la IA en tanto por uno, para aria-valuenow. */
+  get aiPercent(): number {
+    return Math.round(this.aiProgress() * 100);
   }
 
   get difficultyLabel(): string {
@@ -101,10 +121,14 @@ export class GameComponent implements OnInit, OnDestroy {
     this.winner.set(null);
     this.selectedAnswer.set(null);
     this.answerState.set(null);
+    this.aiProgress.set(0);
+    this.aiQuestion.set(null);
+    this.aiFlash.set(null);
+    this.aiStats.set({ attempts: 0, correct: 0 });
 
     this.mathService.resetGame();
     this.spawnQuestion();
-    this.startTicking();
+    this.startRoundLoop();
   }
 
   playAgain(): void {
@@ -125,13 +149,13 @@ export class GameComponent implements OnInit, OnDestroy {
     this.selectedAnswer.set(option);
     this.answerState.set(correct ? 'correct' : 'wrong');
 
-    const current = this.score();
-    this.score.set(
-      correct ? { ...current, user: current.user + 1 } : { ...current, ai: current.ai + 1 },
-    );
+    // Errar ya no le regala puntos a la IA: la IA se puntua en su reloj.
+    if (correct) {
+      const current = this.score();
+      this.score.set({ ...current, user: current.user + 1 });
+    }
 
-    this.feedbackId = setTimeout(() => {
-      this.feedbackId = null;
+    this.schedule(() => {
       this.selectedAnswer.set(null);
       this.answerState.set(null);
       if (!this.gameOver()) {
@@ -158,23 +182,81 @@ export class GameComponent implements OnInit, OnDestroy {
     this.questionsAnswered.update((n) => n + 1);
   }
 
-  private startTicking(): void {
-    this.intervalId = setInterval(() => {
-      const next = this.timeLeft() - 1;
-      if (next <= 0) {
-        this.timeLeft.set(0);
-        this.endRound();
-      } else {
-        this.timeLeft.set(next);
-      }
-    }, 1000);
+  /* --------------------------- Motor de la ronda --------------------------- */
+
+  private startRoundLoop(): void {
+    this.roundStartAt = performance.now();
+    this.aiDelayMs = this.nextAiDelay();
+    this.aiNextAt = this.aiDelayMs;
+    this.intervalId = setInterval(() => this.tick(), TICK_MS);
+    this.tick();
+  }
+
+  private tick(): void {
+    const elapsed = performance.now() - this.roundStartAt;
+    const remaining = Math.max(0, ROUND_MS - elapsed);
+
+    const seconds = Math.ceil(remaining / 1000);
+    if (seconds !== this.timeLeft()) {
+      this.timeLeft.set(seconds);
+    }
+
+    if (remaining <= 0) {
+      this.timeLeft.set(0);
+      this.endRound();
+      return;
+    }
+
+    // La IA responde tantas veces como le haya dado tiempo en este frame.
+    while (elapsed >= this.aiNextAt && !this.gameOver()) {
+      this.resolveAiTurn(elapsed);
+    }
+
+    const ahead = this.aiNextAt - elapsed;
+    this.aiProgress.set(Math.min(1, Math.max(0, 1 - ahead / this.aiDelayMs)));
+  }
+
+  private resolveAiTurn(elapsed: number): void {
+    const difficulty = this.mathService.getCurrentDifficulty();
+    const correct = aiAnswersCorrectly(difficulty, Math.random());
+    const stats = this.aiStats();
+
+    this.aiQuestion.set(this.mathService.getNextQuestion());
+    this.aiStats.set({
+      attempts: stats.attempts + 1,
+      correct: stats.correct + (correct ? 1 : 0),
+    });
+
+    if (correct) {
+      const current = this.score();
+      this.score.set({ ...current, ai: current.ai + 1 });
+    }
+
+    this.aiFlash.set({ kind: correct ? 'score' : 'miss' });
+    this.schedule(() => this.aiFlash.set(null), AI_FLASH_MS);
+
+    this.aiDelayMs = this.nextAiDelay();
+    this.aiNextAt = elapsed + this.aiDelayMs;
+  }
+
+  private nextAiDelay(): number {
+    return aiReactionFor(this.mathService.getCurrentDifficulty(), Math.random());
   }
 
   private endRound(): void {
     this.clearTimers();
+    this.aiFlash.set(null);
     const { user, ai } = this.score();
     this.winner.set(user > ai ? 'user' : ai > user ? 'ai' : 'draw');
     this.gameOver.set(true);
+  }
+
+  private schedule(fn: () => void, ms: number): void {
+    const id = setTimeout(() => {
+      this.timeouts.delete(id);
+      fn();
+    }, ms);
+    this.timeouts.add(id);
   }
 
   private clearTimers(): void {
@@ -182,9 +264,9 @@ export class GameComponent implements OnInit, OnDestroy {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    if (this.feedbackId !== null) {
-      clearTimeout(this.feedbackId);
-      this.feedbackId = null;
+    for (const id of this.timeouts) {
+      clearTimeout(id);
     }
+    this.timeouts.clear();
   }
 }

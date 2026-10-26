@@ -164,6 +164,84 @@ app-timer {
   color: var(--md-muted);
 }
 
+/* ---------- Franja del duelo: qué está resolviendo la IA ahora mismo ---------- */
+.duel-strip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 34px;
+}
+
+.ai-turn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ai-icon {
+  font-size: 1rem;
+  flex: none;
+  color: var(--md-muted);
+}
+
+.ai-state {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ai-question {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--md-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ai-question.idle {
+  font-weight: 500;
+}
+
+.ai-flash {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--md-rose);
+  animation: flash-in 0.25s ease;
+}
+
+.ai-flash.miss {
+  color: var(--md-muted);
+}
+
+@keyframes flash-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.ai-track {
+  flex: none;
+  width: clamp(72px, 20vw, 130px);
+  height: 6px;
+  border-radius: var(--md-r-pill);
+  background: color-mix(in srgb, var(--md-muted) 24%, transparent);
+  overflow: hidden;
+}
+
+/* Crece desde el lado de la IA hacia el tuyo: se la ve empujar. */
+.ai-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: right center;
+  background: var(--md-rose);
+  transition: transform 0.1s linear;
+}
+
 /* ---------- Pregunta ---------- */
 .question-area {
   margin: 0 0 auto;
