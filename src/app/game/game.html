@@ -156,6 +156,50 @@
 
         <p class="result-message">{{ resultMessage() }}</p>
 
+        <div class="result-stats">
+          <div class="stat-chip">
+            <span class="stat-value">{{ summary().accuracy }}%</span>
+            <span class="stat-label">Precisión</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-value">{{ summary().bestStreak }}</span>
+            <span class="stat-label">Mejor racha</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-value">{{ summary().avgSeconds }}s</span>
+            <span class="stat-label">Por pregunta</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-value">+{{ summary().bonus }}</span>
+            <span class="stat-label">Bonus combo</span>
+          </div>
+        </div>
+
+        <p class="result-ai">
+          La IA resolvió {{ summary().aiCorrect }} de {{ summary().aiAttempts }} preguntas ({{
+            summary().aiAccuracy
+          }}%)
+        </p>
+
+        @if (summary().wrong > 0) {
+          <div class="review">
+            <h3 class="review-title">Repaso de fallos ({{ summary().wrong }})</h3>
+            <ul class="review-list">
+              @for (miss of summary().missed; track miss.question.id) {
+                <li class="review-item">
+                  <span class="review-q">
+                    {{ miss.question.a }} {{ operationSymbol(miss.question.operation) }}
+                    {{ miss.question.b }} = {{ miss.question.correctAnswer }}
+                  </span>
+                  <span class="review-a">Tu respuesta: {{ miss.selected }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        } @else {
+          <p class="review-empty">Sin fallos: todas tus respuestas fueron correctas.</p>
+        }
+
         <div class="result-actions">
           <button class="primary-btn" type="button" (click)="playAgain()">
             <app-icon name="refresh" />

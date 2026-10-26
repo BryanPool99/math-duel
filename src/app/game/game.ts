@@ -18,6 +18,15 @@ const BONUS_FLASH_MS = 1000;
 type AnswerState = 'correct' | 'wrong';
 type Winner = 'user' | 'ai' | 'draw';
 
+/** Rastro de cada respuesta del jugador, para el desglose final. */
+export interface AnswerLogEntry {
+  readonly question: MathQuestion;
+  readonly selected: number;
+  readonly correct: boolean;
+  /** Tiempo que tardó la pregunta hasta la respuesta, en ms. */
+  readonly ms: number;
+}
+
 @Component({
   selector: 'app-game',
   imports: [TimerComponent, IconComponent],
@@ -44,6 +53,32 @@ export class GameComponent implements OnInit, OnDestroy {
   readonly bonus = signal(0);
   readonly bonusFlash = signal(false);
 
+  /** Cada respuesta del jugador con su tiempo, para la pantalla de resultados. */
+  readonly answerLog = signal<AnswerLogEntry[]>([]);
+
+  /** Desglose de la ronda: precisión, ritmo, racha, bonus y fallos. */
+  readonly summary = computed(() => {
+    const log = this.answerLog();
+    const answered = log.length;
+    const correct = log.filter((entry) => entry.correct).length;
+    const totalMs = log.reduce((sum, entry) => sum + entry.ms, 0);
+    const ai = this.aiStats();
+
+    return {
+      answered,
+      correct,
+      wrong: answered - correct,
+      accuracy: answered === 0 ? 0 : Math.round((correct / answered) * 100),
+      avgSeconds: answered === 0 ? 0 : Math.round(totalMs / answered / 100) / 10,
+      bestStreak: this.bestStreak(),
+      bonus: this.bonus(),
+      aiAttempts: ai.attempts,
+      aiCorrect: ai.correct,
+      aiAccuracy: ai.attempts === 0 ? 0 : Math.round((ai.correct / ai.attempts) * 100),
+      missed: log.filter((entry) => !entry.correct),
+    };
+  });
+
   /**
    * Barra de enfrentamiento: cuota que llevas sobre el total de puntos.
    * 0-0 arranca en mitad y cada punto se le quita al rival.
@@ -65,6 +100,8 @@ export class GameComponent implements OnInit, OnDestroy {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private readonly timeouts = new Set<ReturnType<typeof setTimeout>>();
   private roundStartAt = 0;
+  /** performance.now() en el que apareció la pregunta actual. */
+  private questionStartAt = 0;
   /** ms transcurridos de la ronda en los que la IA responde. */
   private aiNextAt = 0;
   private aiDelayMs = 1;
@@ -148,6 +185,7 @@ export class GameComponent implements OnInit, OnDestroy {
     this.bestStreak.set(0);
     this.bonus.set(0);
     this.bonusFlash.set(false);
+    this.answerLog.set([]);
 
     this.mathService.resetGame();
     this.spawnQuestion();
@@ -193,6 +231,16 @@ export class GameComponent implements OnInit, OnDestroy {
       this.streak.set(0);
     }
 
+    this.answerLog.update((log) => [
+      ...log,
+      {
+        question: this.currentQuestion()!,
+        selected: option,
+        correct,
+        ms: Math.round(performance.now() - this.questionStartAt),
+      },
+    ]);
+
     this.schedule(() => {
       this.selectedAnswer.set(null);
       this.answerState.set(null);
@@ -218,6 +266,7 @@ export class GameComponent implements OnInit, OnDestroy {
   private spawnQuestion(): void {
     this.currentQuestion.set(this.mathService.getNextQuestion());
     this.questionsAnswered.update((n) => n + 1);
+    this.questionStartAt = performance.now();
   }
 
   /* --------------------------- Motor de la ronda --------------------------- */

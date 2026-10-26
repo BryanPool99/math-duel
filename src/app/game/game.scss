@@ -445,9 +445,8 @@ app-timer {
   inset: 0;
   z-index: 50;
   display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 20px;
+  overflow-y: auto;
   background: var(--md-scrim);
   backdrop-filter: blur(8px);
   animation: fade 0.28s ease;
@@ -460,9 +459,15 @@ app-timer {
 }
 
 .result-card {
-  width: min(420px, 100%);
+  box-sizing: border-box;
+  /* margin:auto centra y, a diferencia de align-items, no deja huecos
+     inalcanzables cuando la tarjeta no cabe en pantalla. */
+  margin: auto;
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   text-align: center;
-  padding: 34px 28px;
+  padding: 30px 28px;
   border-radius: var(--md-r-card);
   background: var(--md-surface);
   box-shadow: var(--md-elevation-lg);
@@ -525,10 +530,114 @@ app-timer {
 }
 
 .result-message {
-  margin: 14px 0 24px;
+  margin: 14px 0 18px;
   font-size: 1rem;
   line-height: 1.5;
   color: var(--md-muted);
+}
+
+/* ---------- Desglose de la ronda ---------- */
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.stat-chip {
+  padding: 11px 8px;
+  border-radius: var(--md-r-control);
+  background: var(--md-surface-2);
+  border: 1px solid var(--md-border);
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--md-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--md-muted);
+}
+
+.result-ai {
+  margin: 0 0 18px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--md-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Repaso de fallos ---------- */
+.review {
+  margin: 0 0 18px;
+  text-align: left;
+}
+
+.review-title {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--md-muted);
+}
+
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 176px;
+  overflow-y: auto;
+}
+
+.review-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--md-r-control);
+  background: var(--md-surface-2);
+  border: 1px solid var(--md-border);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-q {
+  font-weight: 600;
+  color: var(--md-text);
+  white-space: nowrap;
+}
+
+.review-a {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--md-bad-ink);
+  white-space: nowrap;
+}
+
+.review-empty {
+  margin: 0 0 18px;
+  padding: 12px;
+  border-radius: var(--md-r-control);
+  background: color-mix(in srgb, var(--md-good) 12%, var(--md-surface));
+  color: var(--md-good-ink);
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .result-actions {
@@ -608,6 +717,29 @@ app-timer {
   }
   .result-value {
     font-size: 2.4rem;
+  }
+  /* Resultados en pantallas cortas: la tarjeta tiene que caber de un vistazo. */
+  .result-card {
+    padding: 22px 18px;
+  }
+  .result-icon {
+    width: 52px;
+    height: 52px;
+    margin-bottom: 12px;
+    font-size: 1.6rem;
+  }
+  .result-message {
+    margin: 10px 0 14px;
+    font-size: 0.94rem;
+  }
+  .stat-chip {
+    padding: 9px 6px;
+  }
+  .review-list {
+    max-height: 132px;
+  }
+  .result-actions {
+    gap: 8px;
   }
 }
 
