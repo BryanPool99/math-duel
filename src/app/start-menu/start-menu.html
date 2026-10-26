@@ -1,0 +1,72 @@
+<div class="start-menu">
+  <div class="start-menu-content">
+    <div class="logo">
+      <span class="logo-mark" aria-hidden="true">
+        <app-icon name="zap" [filled]="true" />
+      </span>
+      <span class="logo-text">Math Duel</span>
+    </div>
+
+    <p class="tagline">Compite contra la IA en operaciones matemáticas</p>
+
+    <div class="difficulty-selector">
+      <h3 id="difficulty-heading">Selecciona la dificultad</h3>
+      <div class="difficulty-options" role="group" aria-labelledby="difficulty-heading">
+        <button
+          type="button"
+          class="difficulty-btn"
+          [class.selected]="selectedDifficulty === 'easy'"
+          [attr.aria-pressed]="selectedDifficulty === 'easy'"
+          (click)="selectDifficulty('easy')"
+        >
+          <app-icon name="gauge" [level]="1" class="diff-icon" />
+          <span class="diff-label">Fácil</span>
+          <span class="diff-desc">Números 0-10</span>
+        </button>
+
+        <button
+          type="button"
+          class="difficulty-btn"
+          [class.selected]="selectedDifficulty === 'medium'"
+          [attr.aria-pressed]="selectedDifficulty === 'medium'"
+          (click)="selectDifficulty('medium')"
+        >
+          <app-icon name="gauge" [level]="2" class="diff-icon" />
+          <span class="diff-label">Medio</span>
+          <span class="diff-desc">Números 0-50</span>
+        </button>
+
+        <button
+          type="button"
+          class="difficulty-btn"
+          [class.selected]="selectedDifficulty === 'hard'"
+          [attr.aria-pressed]="selectedDifficulty === 'hard'"
+          (click)="selectDifficulty('hard')"
+        >
+          <app-icon name="gauge" [level]="3" class="diff-icon" />
+          <span class="diff-label">Difícil</span>
+          <span class="diff-desc">Números 0-100</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="mode-toggle">
+      <label class="toggle-label">
+        <input
+          type="checkbox"
+          role="switch"
+          [checked]="theme.isDark()"
+          (change)="toggleMode()"
+        />
+        <span class="toggle-slider" aria-hidden="true"></span>
+        <app-icon name="moon" class="toggle-icon" />
+        <span class="toggle-text">Modo oscuro</span>
+      </label>
+    </div>
+
+    <button type="button" class="start-btn" (click)="startGame()">
+      <app-icon name="play" [filled]="true" />
+      Comenzar Quiz
+    </button>
+  </div>
+</div>

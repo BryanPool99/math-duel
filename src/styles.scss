@@ -1,0 +1,109 @@
+/* ---------------------------------------------------------------
+   Math Duel — tokens globales + superficies de navegador
+   --------------------------------------------------------------- */
+
+:root {
+  /* superficies */
+  --md-bg: #f4f5f8;
+  --md-surface: #ffffff;
+  --md-surface-2: #f2f4f8;
+  --md-scrim: rgba(10, 12, 20, 0.68);
+
+  /* tinta */
+  --md-text: #16181d;
+  --md-muted: #57606a; /* 6.0:1 sobre --md-surface */
+
+  /* estructura */
+  --md-border: #e3e6ec;
+  --md-elevation: 0 12px 32px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.05);
+  --md-elevation-lg: 0 26px 60px rgba(15, 23, 42, 0.22), 0 6px 16px rgba(15, 23, 42, 0.1);
+
+  /* color */
+  --md-accent: #e8590c;
+  --md-accent-grad: linear-gradient(135deg, #e8590c, #d9480f);
+  --md-accent-ink: #ffffff;
+  --md-blue: #2563eb;
+  --md-rose: #d6336c;
+  --md-good: #2f9e44;
+  --md-good-ink: #1a6b33;
+  --md-bad: #c92a2a;
+  --md-bad-ink: #9b2226;
+
+  /* radios: tarjeta 16, control 12, píldora solo controles pequeños */
+  --md-r-card: 16px;
+  --md-r-control: 12px;
+  --md-r-pill: 999px;
+}
+
+body.dark {
+  --md-bg: #12141d;
+  --md-surface: #1d2233;
+  --md-surface-2: #262c40;
+  --md-scrim: rgba(6, 8, 14, 0.76);
+
+  --md-text: #e9ecf3;
+  --md-muted: #a3adc0; /* 7.1:1 sobre --md-surface */
+
+  --md-border: #333a52;
+  --md-elevation: 0 12px 32px rgba(0, 0, 0, 0.44), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --md-elevation-lg: 0 26px 60px rgba(0, 0, 0, 0.6), 0 6px 16px rgba(0, 0, 0, 0.4);
+
+  --md-accent: #f7791f;
+  --md-accent-grad: linear-gradient(135deg, #f7791f, #e8590c);
+  --md-blue: #4d8cf5;
+  --md-rose: #f06595;
+  --md-good: #51cf66;
+  --md-good-ink: #8ce99a;
+  --md-bad: #ff8787;
+  --md-bad-ink: #ffc9c9;
+}
+
+html {
+  font-family: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--md-bg);
+  color: var(--md-text);
+  caret-color: var(--md-accent);
+}
+
+/* --- Superficies de navegador que ningún componente dibuja --- */
+::selection {
+  background: color-mix(in srgb, var(--md-accent) 30%, transparent);
+  color: var(--md-text);
+}
+
+:focus-visible {
+  outline: 3px solid var(--md-accent);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--md-muted) 45%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--md-muted) 45%, transparent);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--md-r-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--md-muted) 75%, transparent);
+  background-clip: content-box;
+}
+
+button {
+  font: inherit;
+}
