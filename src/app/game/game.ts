@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { MathService, MathQuestion } from '../math';
 import { TimerComponent } from '../timer';
@@ -199,6 +199,46 @@ export class GameComponent implements OnInit, OnDestroy {
   goToMenu(): void {
     this.clearTimers();
     this.router.navigate(['/']);
+  }
+
+  /**
+   * Atajos: 1-4 responden, Esc vuelve al menú y Enter repite la partida.
+   * Enter se salta cuando el foco ya está en un control, para no duplicar
+   * el clic nativo del botón que tiene el foco.
+   */
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    const inControl = !!target && /^(BUTTON|INPUT|SELECT|TEXTAREA|A)$/.test(target.tagName);
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.goToMenu();
+      return;
+    }
+
+    if (this.gameOver()) {
+      if (event.key === 'Enter' && !inControl) {
+        event.preventDefault();
+        this.playAgain();
+      }
+      return;
+    }
+
+    const isDigit = event.key >= '1' && event.key <= '4';
+    if (!isDigit || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    const question = this.currentQuestion();
+    if (!question || this.selectedAnswer() !== null) {
+      return;
+    }
+    const option = question.options[Number(event.key) - 1];
+    if (option !== undefined) {
+      event.preventDefault();
+      this.onAnswer(option);
+    }
   }
 
   onAnswer(option: number): void {

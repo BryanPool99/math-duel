@@ -114,6 +114,7 @@
                 [disabled]="selectedAnswer() !== null || gameOver()"
                 (click)="onAnswer(option)"
               >
+                <span class="option-key" aria-hidden="true">{{ $index + 1 }}</span>
                 {{ option }}
               </button>
             }

@@ -356,6 +356,7 @@ app-timer {
 }
 
 .option-btn {
+  position: relative;
   min-height: 62px;
   padding: 14px;
   font-size: 1.5rem;
@@ -367,6 +368,28 @@ app-timer {
   border-radius: var(--md-r-control);
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+/* Indicador de teclado para las opciones: solo pantallas con puntero fino. */
+.option-key {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--md-r-pill);
+  background: color-mix(in srgb, var(--md-muted) 18%, transparent);
+  color: var(--md-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+@media (pointer: coarse) {
+  .option-key {
+    display: none;
+  }
 }
 
 .option-btn:hover:not(:disabled) {
