@@ -19,6 +19,7 @@
           [attr.aria-pressed]="selectedDifficulty === 'easy'"
           (click)="selectDifficulty('easy')"
         >
+          <span class="diff-key" aria-hidden="true">1</span>
           <app-icon name="gauge" [level]="1" class="diff-icon" />
           <span class="diff-label">Fácil</span>
           <span class="diff-desc">Números 0-10</span>
@@ -31,6 +32,7 @@
           [attr.aria-pressed]="selectedDifficulty === 'medium'"
           (click)="selectDifficulty('medium')"
         >
+          <span class="diff-key" aria-hidden="true">2</span>
           <app-icon name="gauge" [level]="2" class="diff-icon" />
           <span class="diff-label">Medio</span>
           <span class="diff-desc">Números 0-50</span>
@@ -43,6 +45,7 @@
           [attr.aria-pressed]="selectedDifficulty === 'hard'"
           (click)="selectDifficulty('hard')"
         >
+          <span class="diff-key" aria-hidden="true">3</span>
           <app-icon name="gauge" [level]="3" class="diff-icon" />
           <span class="diff-label">Difícil</span>
           <span class="diff-desc">Números 0-100</span>
@@ -67,6 +70,7 @@
     <button type="button" class="start-btn" (click)="startGame()">
       <app-icon name="play" [filled]="true" />
       Comenzar Quiz
+      <span class="start-key" aria-hidden="true">Enter</span>
     </button>
   </div>
 </div>

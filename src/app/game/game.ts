@@ -4,6 +4,7 @@ import { MathService, MathQuestion } from '../math';
 import { TimerComponent } from '../timer';
 import { IconComponent } from '../icon';
 import { aiAnswersCorrectly, aiReactionFor } from './ai';
+import { SoundService } from './sound.service';
 
 const ROUND_SECONDS = 60;
 const ROUND_MS = ROUND_SECONDS * 1000;
@@ -14,16 +15,16 @@ const AI_FLASH_MS = 700;
 /** Puntos que da de bonus cada N aciertos seguidos. */
 const COMBO_EVERY = 5;
 const BONUS_FLASH_MS = 1000;
+const COUNTDOWN_STEP_MS = 1000;
 
 type AnswerState = 'correct' | 'wrong';
 type Winner = 'user' | 'ai' | 'draw';
+type Phase = 'countdown' | 'playing' | 'result';
 
-/** Rastro de cada respuesta del jugador, para el desglose final. */
 export interface AnswerLogEntry {
   readonly question: MathQuestion;
   readonly selected: number;
   readonly correct: boolean;
-  /** Tiempo que tardó la pregunta hasta la respuesta, en ms. */
   readonly ms: number;
 }
 
@@ -36,8 +37,8 @@ export interface AnswerLogEntry {
 export class GameComponent implements OnInit, OnDestroy {
   readonly totalSeconds = ROUND_SECONDS;
 
-  // Signals: en Angular 21 (zoneless) solo los signals disparan change detection
-  // desde callbacks como setInterval / setTimeout.
+  readonly phase = signal<Phase>('countdown');
+  readonly countdown = signal(3);
   readonly timeLeft = signal(ROUND_SECONDS);
   readonly score = signal({ user: 0, ai: 0 });
   readonly currentQuestion = signal<MathQuestion | null>(null);
@@ -47,29 +48,24 @@ export class GameComponent implements OnInit, OnDestroy {
   readonly gameOver = signal(false);
   readonly winner = signal<Winner | null>(null);
 
-  /** Racha de aciertos consecutivos y bonus acumulado. */
   readonly streak = signal(0);
   readonly bestStreak = signal(0);
   readonly bonus = signal(0);
   readonly bonusFlash = signal(false);
-
-  /** Cada respuesta del jugador con su tiempo, para la pantalla de resultados. */
   readonly answerLog = signal<AnswerLogEntry[]>([]);
 
-  /** Desglose de la ronda: precisión, ritmo, racha, bonus y fallos. */
   readonly summary = computed(() => {
     const log = this.answerLog();
     const answered = log.length;
     const correct = log.filter((entry) => entry.correct).length;
     const totalMs = log.reduce((sum, entry) => sum + entry.ms, 0);
     const ai = this.aiStats();
-
     return {
       answered,
       correct,
       wrong: answered - correct,
       accuracy: answered === 0 ? 0 : Math.round((correct / answered) * 100),
-      avgSeconds: answered === 0 ? 0 : Math.round(totalMs / answered / 100) / 10,
+      avgSeconds: answered === 0 ? 0 : Math.round((totalMs / answered / 100)) / 10,
       bestStreak: this.bestStreak(),
       bonus: this.bonus(),
       aiAttempts: ai.attempts,
@@ -79,17 +75,12 @@ export class GameComponent implements OnInit, OnDestroy {
     };
   });
 
-  /**
-   * Barra de enfrentamiento: cuota que llevas sobre el total de puntos.
-   * 0-0 arranca en mitad y cada punto se le quita al rival.
-   */
   readonly userShare = computed(() => {
     const { user, ai } = this.score();
     const total = user + ai;
     return total === 0 ? 0.5 : user / total;
   });
 
-  /** La IA en su propio reloj: avance hacia su proxima respuesta. */
   readonly aiProgress = signal(0);
   readonly aiQuestion = signal<MathQuestion | null>(null);
   readonly aiFlash = signal<{ kind: 'score' | 'miss' } | null>(null);
@@ -97,21 +88,19 @@ export class GameComponent implements OnInit, OnDestroy {
 
   private readonly mathService = inject(MathService);
   private readonly router = inject(Router);
+  readonly sound = inject(SoundService);
+
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private readonly timeouts = new Set<ReturnType<typeof setTimeout>>();
   private roundStartAt = 0;
-  /** performance.now() en el que apareció la pregunta actual. */
   private questionStartAt = 0;
-  /** ms transcurridos de la ronda en los que la IA responde. */
   private aiNextAt = 0;
   private aiDelayMs = 1;
 
-  /** Avance de la barra del cronómetro, 1 → 0. Se anima con transform. */
   get timerScale(): number {
     return this.timeLeft() / this.totalSeconds;
   }
 
-  /** Avance de la IA en tanto por uno, para aria-valuenow. */
   get aiPercent(): number {
     return Math.round(this.aiProgress() * 100);
   }
@@ -161,7 +150,8 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.startRound();
+    this.sound.unlock();
+    this.startCountdown();
   }
 
   ngOnDestroy(): void {
@@ -170,6 +160,7 @@ export class GameComponent implements OnInit, OnDestroy {
 
   startRound(): void {
     this.clearTimers();
+    this.phase.set('playing');
     this.timeLeft.set(ROUND_SECONDS);
     this.score.set({ user: 0, ai: 0 });
     this.questionsAnswered.set(0);
@@ -186,14 +177,14 @@ export class GameComponent implements OnInit, OnDestroy {
     this.bonus.set(0);
     this.bonusFlash.set(false);
     this.answerLog.set([]);
-
     this.mathService.resetGame();
     this.spawnQuestion();
     this.startRoundLoop();
   }
 
   playAgain(): void {
-    this.startRound();
+    this.sound.unlock();
+    this.startCountdown();
   }
 
   goToMenu(): void {
@@ -201,35 +192,56 @@ export class GameComponent implements OnInit, OnDestroy {
     this.router.navigate(['/']);
   }
 
-  /**
-   * Atajos: 1-4 responden, Esc vuelve al menú y Enter repite la partida.
-   * Enter se salta cuando el foco ya está en un control, para no duplicar
-   * el clic nativo del botón que tiene el foco.
-   */
+  private startCountdown(): void {
+    this.clearTimers();
+    this.gameOver.set(false);
+    this.winner.set(null);
+    this.phase.set('countdown');
+    this.countdown.set(3);
+    this.sound.countdown(3);
+    let count = 3;
+    const step = () => {
+      count -= 1;
+      if (count > 0) {
+        this.countdown.set(count);
+        this.sound.countdown(count);
+        this.schedule(step, COUNTDOWN_STEP_MS);
+        return;
+      }
+      this.countdown.set(0);
+      this.sound.countdown(0);
+      this.schedule(() => {
+        this.phase.set('playing');
+        this.startRound();
+      }, COUNTDOWN_STEP_MS);
+    };
+    this.schedule(step, COUNTDOWN_STEP_MS);
+  }
+
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement | null;
     const inControl = !!target && /^(BUTTON|INPUT|SELECT|TEXTAREA|A)$/.test(target.tagName);
-
     if (event.key === 'Escape') {
       event.preventDefault();
       this.goToMenu();
       return;
     }
-
     if (this.gameOver()) {
       if (event.key === 'Enter' && !inControl) {
         event.preventDefault();
+        this.sound.unlock();
         this.playAgain();
       }
       return;
     }
-
+    if (this.phase() !== 'playing') {
+      return;
+    }
     const isDigit = event.key >= '1' && event.key <= '4';
     if (!isDigit || event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
-
     const question = this.currentQuestion();
     if (!question || this.selectedAnswer() !== null) {
       return;
@@ -237,26 +249,24 @@ export class GameComponent implements OnInit, OnDestroy {
     const option = question.options[Number(event.key) - 1];
     if (option !== undefined) {
       event.preventDefault();
+      this.sound.click();
       this.onAnswer(option);
     }
   }
 
   onAnswer(option: number): void {
-    if (this.selectedAnswer() !== null || this.gameOver() || !this.currentQuestion()) {
+    if (this.selectedAnswer() !== null || this.gameOver() || !this.currentQuestion() || this.phase() !== 'playing') {
       return;
     }
-
     const correct = this.mathService.verifyAnswer(option, this.currentQuestion()!);
     this.selectedAnswer.set(option);
     this.answerState.set(correct ? 'correct' : 'wrong');
+    correct ? this.sound.correct() : this.sound.wrong();
 
-    // Errar ya no le regala puntos a la IA: la IA se puntua en su reloj.
     if (correct) {
       const streak = this.streak() + 1;
       this.streak.set(streak);
       this.bestStreak.update((best) => Math.max(best, streak));
-
-      // Cada N seguidas cae un punto de bonus.
       let extra = 0;
       if (streak % COMBO_EVERY === 0) {
         extra = 1;
@@ -264,7 +274,6 @@ export class GameComponent implements OnInit, OnDestroy {
         this.bonusFlash.set(true);
         this.schedule(() => this.bonusFlash.set(false), BONUS_FLASH_MS);
       }
-
       const current = this.score();
       this.score.set({ ...current, user: current.user + 1 + extra });
     } else {
@@ -284,7 +293,7 @@ export class GameComponent implements OnInit, OnDestroy {
     this.schedule(() => {
       this.selectedAnswer.set(null);
       this.answerState.set(null);
-      if (!this.gameOver()) {
+      if (!this.gameOver() && this.phase() === 'playing') {
         this.spawnQuestion();
       }
     }, ANSWER_FEEDBACK_MS);
@@ -309,8 +318,6 @@ export class GameComponent implements OnInit, OnDestroy {
     this.questionStartAt = performance.now();
   }
 
-  /* --------------------------- Motor de la ronda --------------------------- */
-
   private startRoundLoop(): void {
     this.roundStartAt = performance.now();
     this.aiDelayMs = this.nextAiDelay();
@@ -320,9 +327,11 @@ export class GameComponent implements OnInit, OnDestroy {
   }
 
   private tick(): void {
+    if (this.phase() !== 'playing') {
+      return;
+    }
     const elapsed = performance.now() - this.roundStartAt;
     const remaining = Math.max(0, ROUND_MS - elapsed);
-
     const seconds = Math.ceil(remaining / 1000);
     if (seconds !== this.timeLeft()) {
       this.timeLeft.set(seconds);
@@ -334,7 +343,12 @@ export class GameComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // La IA responde tantas veces como le haya dado tiempo en este frame.
+    const prevSecond = Math.floor((remaining + TICK_MS) / 1000);
+    if (Math.floor(remaining / 1000) !== prevSecond && seconds >= 1 && seconds <= 5) {
+      this.sound.tickUrgent();
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+
     while (elapsed >= this.aiNextAt && !this.gameOver()) {
       this.resolveAiTurn(elapsed);
     }
@@ -347,21 +361,15 @@ export class GameComponent implements OnInit, OnDestroy {
     const difficulty = this.mathService.getCurrentDifficulty();
     const correct = aiAnswersCorrectly(difficulty, Math.random());
     const stats = this.aiStats();
-
     this.aiQuestion.set(this.mathService.getNextQuestion());
-    this.aiStats.set({
-      attempts: stats.attempts + 1,
-      correct: stats.correct + (correct ? 1 : 0),
-    });
-
+    this.aiStats.set({ attempts: stats.attempts + 1, correct: stats.correct + (correct ? 1 : 0) });
     if (correct) {
       const current = this.score();
       this.score.set({ ...current, ai: current.ai + 1 });
+      this.sound.aiScore();
     }
-
     this.aiFlash.set({ kind: correct ? 'score' : 'miss' });
     this.schedule(() => this.aiFlash.set(null), AI_FLASH_MS);
-
     this.aiDelayMs = this.nextAiDelay();
     this.aiNextAt = elapsed + this.aiDelayMs;
   }
@@ -376,6 +384,12 @@ export class GameComponent implements OnInit, OnDestroy {
     const { user, ai } = this.score();
     this.winner.set(user > ai ? 'user' : ai > user ? 'ai' : 'draw');
     this.gameOver.set(true);
+    this.phase.set('result');
+    if (navigator.vibrate) {
+      navigator.vibrate(user > ai ? [30, 40, 30] : [60]);
+    }
+    if (user > ai) this.sound.win();
+    else if (ai > user) this.sound.lose();
   }
 
   private schedule(fn: () => void, ms: number): void {
