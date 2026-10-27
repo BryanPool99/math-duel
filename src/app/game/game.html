@@ -1,6 +1,6 @@
-<div class="game">
+<div class="game" (click)="sound.unlock()" (touchstart)="sound.unlock()">
   <header class="game-header">
-    <button class="icon-btn" type="button" (click)="goToMenu()" aria-label="Volver al menú">
+    <button class="icon-btn" type="button" (click)="goToMenu(); sound.click()" aria-label="Volver al menú">
       <app-icon name="arrow-left" />
     </button>
 
@@ -93,8 +93,19 @@
     </div>
   </section>
 
+  @if (phase() === 'countdown') {
+    <div class="countdown-overlay">
+      <div class="countdown-number">{{ countdown() === 0 ? 'GO!' : countdown() }}</div>
+      <p class="countdown-label">Prepárate</p>
+    </div>
+  }
+
   <main class="question-area">
-    @if (currentQuestion(); as q) {
+    @if (phase() !== 'playing') {
+      <div class="question-card loading">
+        <p class="loading-text">{{ phase() === 'countdown' ? 'Atentos al 3-2-1…' : 'Preparando el duelo…' }}</p>
+      </div>
+    } @else if (currentQuestion(); as q) {
       @for (item of [q]; track item.id) {
         <div class="question-card">
           <p class="question-text">
@@ -111,8 +122,8 @@
                 class="option-btn"
                 [class.correct]="answerState() !== null && option === item.correctAnswer"
                 [class.wrong]="answerState() === 'wrong' && selectedAnswer() === option"
-                [disabled]="selectedAnswer() !== null || gameOver()"
-                (click)="onAnswer(option)"
+                [disabled]="selectedAnswer() !== null || gameOver() || phase() !== 'playing'"
+                (click)="onAnswer(option); sound.click()"
               >
                 <span class="option-key" aria-hidden="true">{{ $index + 1 }}</span>
                 {{ option }}
@@ -202,11 +213,11 @@
         }
 
         <div class="result-actions">
-          <button class="primary-btn" type="button" (click)="playAgain()">
+          <button class="primary-btn" type="button" (click)="playAgain(); sound.click()">
             <app-icon name="refresh" />
             Jugar de nuevo
           </button>
-          <button class="ghost-btn" type="button" (click)="goToMenu()">Volver al menú</button>
+          <button class="ghost-btn" type="button" (click)="goToMenu(); sound.click()">Volver al menú</button>
         </div>
       </div>
     </div>
