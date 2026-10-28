@@ -8,5 +8,7 @@ export const routes: Routes = [
     loadComponent: () => import('./game/game').then((m) => m.GameComponent),
     title: 'Math Duel — Partida',
   },
+  { path: 'tricks', redirectTo: '/', pathMatch: 'full' },
+  { path: 'tricks/timer', redirectTo: '/', pathMatch: 'full' },
   { path: '**', redirectTo: '' },
 ];

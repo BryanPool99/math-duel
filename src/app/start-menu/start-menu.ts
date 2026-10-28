@@ -17,7 +17,7 @@ export class StartMenuComponent {
 
   selectedDifficulty: Difficulty = 'easy';
 
-  private readonly router = inject(Router);
+  readonly router = inject(Router);
   private readonly mathService = inject(MathService);
 
   constructor() {
