@@ -1,0 +1,58 @@
+<div class="tricks">
+  <div class="tricks-content">
+    <header class="tricks-header">
+      <button class="icon-btn" type="button" (click)="goHome()" aria-label="Volver al menú">
+        <app-icon name="arrow-left" />
+      </button>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><app-icon name="zap" [filled]="true" /></span>
+        <span class="brand-text">Trucos</span>
+      </div>
+      <div class="header-spacer" aria-hidden="true"></div>
+    </header>
+
+    <p class="tagline">Aprende el atajo, practícalo y calcula sin escribir nada.</p>
+
+    <div class="tricks-grid">
+      @for (card of cards(); track card.type) {
+        <button type="button" class="trick-card" (click)="play(card.type)">
+          <span class="trick-badge" aria-hidden="true">{{ card.short }}</span>
+          <span class="trick-body">
+            <span class="trick-title">{{ card.title }}</span>
+            <span class="trick-tip">{{ card.tip }}</span>
+          </span>
+          <span class="trick-meta">
+            @if (card.played > 0) {
+              <span class="trick-best">Racha {{ card.best }}</span>
+            } @else {
+              <span class="trick-new">Nuevo</span>
+            }
+            <app-icon name="play" [filled]="true" class="trick-play" />
+          </span>
+        </button>
+      }
+    </div>
+
+    <div class="footer">
+      <p class="footer-note">
+        @if (totalCorrect() > 0) {
+          {{ totalCorrect() }} aciertos acumulados · récords guardados en este navegador
+        } @else {
+          Modo cronómetro de 60 s · sin IA · explicación al fallar
+        }
+      </p>
+
+      @if (totalCorrect() > 0) {
+        @if (confirmReset()) {
+          <div class="reset-confirm">
+            <span>¿Borrar tu progreso?</span>
+            <button type="button" class="link-btn danger" (click)="doReset()">Sí, borrar</button>
+            <button type="button" class="link-btn" (click)="cancelReset()">Cancelar</button>
+          </div>
+        } @else {
+          <button type="button" class="link-btn" (click)="askReset()">Reiniciar progreso</button>
+        }
+      }
+    </div>
+  </div>
+</div>
