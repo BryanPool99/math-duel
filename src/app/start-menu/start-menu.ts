@@ -33,7 +33,9 @@ export class StartMenuComponent {
       return;
     }
 
-    if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    const onControl = tag === 'BUTTON' || tag === 'A';
+
+    if (event.key === 'Enter' && !onControl && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
       this.startGame();
       return;
@@ -61,5 +63,9 @@ export class StartMenuComponent {
   startGame(): void {
     this.mathService.setDifficulty(this.selectedDifficulty);
     this.router.navigate(['/game']);
+  }
+
+  openTricks(): void {
+    this.router.navigate(['/tricks']);
   }
 }

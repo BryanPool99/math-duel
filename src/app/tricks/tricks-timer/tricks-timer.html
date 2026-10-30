@@ -1,0 +1,124 @@
+<div class="tricks-timer">
+  <header class="topbar">
+    <button class="icon-btn" type="button" (click)="goToTricks()" aria-label="Volver a trucos">
+      <app-icon name="arrow-left" />
+    </button>
+    <div class="brand">Trucos</div>
+    <div class="trick-pill">{{ trickTitle() }}</div>
+  </header>
+
+  <section class="hud">
+    <app-timer [timeLeft]="timeLeft()" />
+    <div class="hud-stats">
+      <div class="stat">
+        <span class="stat-label">Aciertos</span>
+        <span class="stat-value">{{ score() }}</span>
+      </div>
+      <div class="stat" [class.hot]="streak() >= 3">
+        <span class="stat-label">Racha</span>
+        <span class="stat-value">{{ streak() }}</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="timer-track" aria-hidden="true">
+    <div
+      class="timer-fill"
+      [style.transform]="'scaleX(' + timerScale + ')'"
+      [class.low]="timeLeft() <= 10"
+    ></div>
+  </div>
+
+  <main class="board">
+    @if (phase() === 'countdown') {
+      <div class="countdown">
+        <span class="countdown-number">{{ countdown() === 0 ? '¡Ya!' : countdown() }}</span>
+        <span class="countdown-hint">{{ trickTip() }}</span>
+      </div>
+    } @else if (phase() === 'playing') {
+      @if (currentQuestion(); as question) {
+        <div class="question-card">
+          <span class="question-tag">{{ trickTip() }}</span>
+          <p class="question-text">{{ question.prompt }}</p>
+
+          <div class="options">
+            @for (option of question.options; track option; let i = $index) {
+              <button
+                type="button"
+                class="option"
+                [class.correct]="answerState() !== null && option === question.answer"
+                [class.wrong]="answerState() === 'wrong' && selectedAnswer() === option"
+                [disabled]="selectedAnswer() !== null || showExplanation()"
+                (click)="onAnswer(option)"
+              >
+                <span class="option-key" aria-hidden="true">{{ i + 1 }}</span>
+                <span class="option-value">{{ option }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    } @else {
+      <div class="result-card">
+        <span class="result-kicker">{{ trickTitle() }}</span>
+        <p class="result-score">{{ score() }}</p>
+        <p class="result-label">aciertos en 60 segundos</p>
+
+        @if (newRecord()) {
+          <span class="record-pill">Nuevo récord de racha</span>
+        }
+
+        <div class="result-grid">
+          <div class="result-item">
+            <span class="result-item-value">{{ answered() }}</span>
+            <span class="result-item-label">respondidas</span>
+          </div>
+          <div class="result-item">
+            <span class="result-item-value">{{ accuracy() }}%</span>
+            <span class="result-item-label">precisión</span>
+          </div>
+          <div class="result-item">
+            <span class="result-item-value">{{ bestStreak() }}</span>
+            <span class="result-item-label">mejor racha</span>
+          </div>
+          <div class="result-item">
+            <span class="result-item-value">{{ avgSeconds() }}s</span>
+            <span class="result-item-label">por respuesta</span>
+          </div>
+        </div>
+
+        <div class="result-actions">
+          <button type="button" class="primary-btn" (click)="playAgain()">
+            <app-icon name="refresh" />
+            Otra ronda
+          </button>
+          <button type="button" class="ghost-btn" (click)="goToTricks()">Otros trucos</button>
+        </div>
+      </div>
+    }
+  </main>
+
+  @if (showExplanation() && currentQuestion(); as question) {
+    <div class="explain-backdrop">
+      <div class="explain-card" role="dialog" aria-modal="true" aria-labelledby="explain-title">
+        <span class="explain-kicker">El truco</span>
+        <h2 id="explain-title" class="explain-title">{{ question.explanation }}</h2>
+
+        <ol class="explain-steps">
+          @for (step of question.steps; track step) {
+            <li>{{ step }}</li>
+          }
+        </ol>
+
+        <p class="explain-answer">
+          Respuesta correcta: <strong>{{ question.answer }}</strong>
+        </p>
+
+        <button type="button" class="primary-btn" (click)="dismissExplanation()">
+          Seguir jugando
+          <span class="btn-key" aria-hidden="true">Enter</span>
+        </button>
+      </div>
+    </div>
+  }
+</div>

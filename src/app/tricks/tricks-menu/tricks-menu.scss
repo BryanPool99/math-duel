@@ -1,0 +1,258 @@
+:host {
+  display: block;
+}
+
+.tricks {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  color: var(--md-text);
+}
+
+.tricks-content {
+  width: min(520px, 100%);
+  padding: 28px;
+  border-radius: var(--md-r-card);
+  background: var(--md-surface);
+  box-shadow: var(--md-elevation-lg);
+}
+
+.tricks-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  font-size: 1.1rem;
+  color: var(--md-text);
+  background: var(--md-surface-2);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-r-control);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--md-accent) 55%, var(--md-border));
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  font-size: 1.1rem;
+  color: var(--md-accent-ink);
+  background: var(--md-accent-grad);
+  border-radius: 10px;
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--md-accent) 32%, transparent);
+}
+
+.brand-text {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.header-spacer {
+  flex: 1;
+}
+
+.tagline {
+  margin: 14px 0 22px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--md-muted);
+}
+
+.tricks-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.trick-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 68px;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--md-text);
+  background: var(--md-surface-2);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-r-control);
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.trick-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--md-accent) 55%, var(--md-border));
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--md-text) 10%, transparent);
+}
+
+.trick-card:active {
+  transform: translateY(0);
+}
+
+.trick-badge {
+  display: grid;
+  place-items: center;
+  min-width: 52px;
+  height: 44px;
+  padding: 0 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--md-accent-ink);
+  background: var(--md-accent-grad);
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trick-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.trick-title {
+  font-size: 0.98rem;
+  font-weight: 650;
+}
+
+.trick-tip {
+  font-size: 0.8rem;
+  color: var(--md-muted);
+}
+
+.trick-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.trick-best {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--md-good-ink);
+  background: color-mix(in srgb, var(--md-good) 16%, transparent);
+  padding: 3px 8px;
+  border-radius: var(--md-r-pill);
+}
+
+.trick-new {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--md-muted);
+  background: color-mix(in srgb, var(--md-muted) 14%, transparent);
+  padding: 3px 8px;
+  border-radius: var(--md-r-pill);
+}
+
+.trick-play {
+  font-size: 0.95rem;
+  color: var(--md-accent);
+}
+
+.footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--md-border);
+  text-align: center;
+}
+
+.footer-note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--md-muted);
+}
+
+.reset-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--md-muted);
+}
+
+.link-btn {
+  margin-top: 10px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--md-muted);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.reset-confirm .link-btn {
+  margin-top: 0;
+}
+
+.link-btn:hover {
+  color: var(--md-text);
+}
+
+.link-btn.danger {
+  color: var(--md-bad);
+}
+
+@media (max-width: 420px) {
+  .tricks {
+    padding: 12px;
+    align-items: flex-start;
+  }
+
+  .tricks-content {
+    padding: 20px 16px;
+  }
+
+  .trick-card {
+    min-height: 62px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .trick-badge {
+    min-width: 44px;
+    height: 40px;
+    font-size: 0.85rem;
+  }
+
+  .trick-best,
+  .trick-new {
+    display: none;
+  }
+}
